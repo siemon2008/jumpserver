@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load mytags %}
+{% block content %}
+{% include 'nav_cat_bar.html' %}
+
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="row">
+        <div class="col-lg-10">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5> 查看系统帐号 </h5>
+                    <div class="ibox-tools">
+                        <a class="collapse-link">
+                            <i class="fa fa-chevron-up"></i>
+                        </a>
+                        <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                            <i class="fa fa-wrench"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-user">
+                            <li><a href="#">未启用 1</a>
+                            </li>
+                            <li><a href="#">未启用 2</a>
+                            </li>
+                        </ul>
+                        <a class="close-link">
+                            <i class="fa fa-times"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="ibox-content">
+                    <div class="">
+                    <a target="_blank" href="/juser/account_add/" class="btn btn-sm btn-primary "> 添加系统帐号 </a>
+                    <a id="del_btn" class="btn btn-sm btn-danger"> 删除所选 </a>
+                    <form id="search_form" method="get" action="" class="pull-right mail-search">
+                        <div class="input-group">
+                            <input type="text" class="form-control input-sm" id="search_input" name="search" placeholder="Search">
+                            <div class="input-group-btn">
+                                <button id='search_btn' type="submit" class="btn btn-sm btn-primary">
+                                    Search
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    </div>
+
+                    <table class="table table-striped table-bordered table-hover " id="editable" >
+                        <thead>
+                            <tr>
+                                <th class="text-center">
+                                    <input type="checkbox" id="select_all" onclick="selectAll()"  name="select_all">
+                                </th>
+                                <th class="text-center">系统帐号</th>
+                                <th class="text-center">备注</th>
+                                <th class="text-center">创建时间</th>
+                                <th class="text-center">SSH公钥下载</th>
+                                <th class="text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                        {% for account in contacts.object_list %}
+                            <tr class="gradeX">
+                                <td class="text-center">
+                                    <input type="checkbox"  name="selected" value="{{ account.id }}">
+                                </td>
+                                <td class="text-center"> {{ account.account }} </td>
+                                <td class="text-center"> {{ account.comment }}</td>
+                                <td class="text-center"> {{ account.date_joined |date:"Y-m-d H:i:s" }} </td>
+                                <td class="text-center"><a href="/juser/account_down_key/?id={{ account.id }}">下载</a></td>
+                                <td class="text-center">
+                                    {% ifequal session_role_id 2 %}
+                                        <a href="../account_del/?id={{ account.id }}" class="btn btn-xs btn-danger">删除</a>
+                                    {% endifequal %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="dataTables_info" id="editable_info" role="status" aria-live="polite">
+                                Showing {{ contacts.start_index }} to {{ contacts.end_index }} of {{ p.count }} entries
+                            </div>
+                        </div>
+                        {% include 'paginator.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function(){
+        var check_array = []
+        $('#del_btn').click(function(){
+            if (confirm("确定删除")) {
+                $(".gradeX input:checked").each(function() {
+                    var id = $(this).attr("value");
+                    if(id > 2){
+                        check_array.push(id);
+                        $(this).closest("tr").remove();
+                    }
+                });
+{#                $(".gradeX input:checked").closest("tr").remove();#}
+                $.post("/juser/account_del_ajax/",
+                    {account_ids: check_array.join(",")},
+                    function(data){
+                        alert(data)
+                    }
+                )
+            }
+
+        })
+
+    });
+</script>
+
+{% endblock %}

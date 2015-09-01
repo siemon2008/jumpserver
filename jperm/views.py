@@ -9,6 +9,7 @@ from django.template import RequestContext
 from jperm.models import Perm, SudoPerm, CmdGroup, Apply
 from django.db.models import Q
 from jumpserver.api import *
+from juser.models import *
 
 
 def asset_cmd_groups_get(asset_groups_select='', cmd_groups_select=''):
@@ -78,6 +79,7 @@ def dept_perm_edit(request):
         asset_select = request.POST.getlist('asset_select')
         dept_add_asset(dept_id, asset_select)
         return HttpResponseRedirect('/jperm/dept_perm_list/')
+
     return render_to_response('jperm/dept_perm_edit.html', locals(), context_instance=RequestContext(request))
 
 
@@ -153,7 +155,7 @@ def dept_perm_list(request):
         contact_list = DEPT.objects.filter(Q(name__icontains=keyword) | Q(comment__icontains=keyword)).order_by('name')
     else:
         contact_list = DEPT.objects.filter(id__gt=2)
-
+   
     contact_list, p, contacts, page_range, current_page, show_first, show_end = pages(contact_list, request)
 
     return render_to_response('jperm/dept_perm_list.html', locals(), context_instance=RequestContext(request))
@@ -178,6 +180,26 @@ def perm_group_update(user_group_id, asset_groups_id_list):
         for asset_group in add_asset_group:
             Perm(user_group=user_group, asset_group=asset_group).save()
 
+def account_group_update(user_group_id, account_groups_id_list):
+    user_group = UserGroup.objects.filter(id=user_group_id)
+    if user_group:
+        user_group = user_group[0]
+        old_account_group = user_group.account_set.all()
+        new_account_group = []
+        for account_group_id in account_groups_id_list:
+            new_account_group.extend(Account.objects.filter(id=account_group_id))
+
+        del_account_group = [account_group for account_group in old_account_group if account_group not in new_account_group]
+        add_account_group = [account_group for account_group in new_account_group if account_group not in old_account_group]
+
+
+        for account_group in del_account_group:
+            Account_group.objects.filter(usergroup_id=user_group.id, account_id=account_group.id).delete()
+
+        for account_group in add_account_group:
+            Account_group(usergroup_id=user_group.id, account_id=account_group.id).save()
+
+
 
 @require_super_user
 def perm_edit(request):
@@ -190,12 +212,20 @@ def perm_edit(request):
             asset_groups_all = BisGroup.objects.all()
             asset_groups_select = [perm.asset_group for perm in user_group.perm_set.all()]
             asset_groups = [asset_group for asset_group in asset_groups_all if asset_group not in asset_groups_select]
+
+            account_groups_all = Account.objects.all()
+            account_groups_select = user_group.account_set.all()
+            account_groups = [account_group for account_group in account_groups_all if account_group not in account_groups_select]
+
     else:
         user_group_id = request.POST.get('user_group_id')
         asset_group_id_list = request.POST.getlist('asset_groups_select')
         perm_group_update(user_group_id, asset_group_id_list)
 
-        return HttpResponseRedirect('/jperm/perm_list/')
+        account_group_id_list = request.POST.getlist('account_groups_select')
+        account_group_update(user_group_id, account_group_id_list)
+
+        return HttpResponseRedirect('/jperm/perm_list/',locals())
     return render_to_response('jperm/perm_edit.html', locals(), context_instance=RequestContext(request))
 
 
@@ -234,6 +264,8 @@ def perm_detail(request):
         group_user_num = len(users)
         perms = user_group.perm_set.all()
         asset_groups = [perm.asset_group for perm in perms]
+        account_groups = user_group.account_set.all()       
+        group_account_num = len(account_groups)
     return render_to_response('jperm/perm_detail.html', locals(), context_instance=RequestContext(request))
 
 

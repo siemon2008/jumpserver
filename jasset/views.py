@@ -182,7 +182,7 @@ def db_idc_delete(request, idc_id):
 def host_add(request):
     """ 添加主机 """
     header_title, path1, path2 = u'添加主机', u'资产管理', u'添加主机'
-    login_types = {'L': 'LDAP', 'M': 'MAP'}
+    login_types = {'L': 'LDAP1', 'M': 'MAP'}
     eidc = IDC.objects.exclude(name='ALL')
     if is_super_user(request):
         edept = DEPT.objects.all()

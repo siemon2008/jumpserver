@@ -17,6 +17,22 @@ class UserGroup(models.Model):
     def __unicode__(self):
         return self.name
 
+class Account(models.Model):
+    account = models.CharField(max_length=80, unique=True)
+    comment = models.CharField(max_length=160, unique=True)
+    date_joined = models.DateTimeField(auto_now_add=True)
+    group = models.ManyToManyField(UserGroup)
+    
+
+    def __unicode__(self):
+        return self.account
+
+class Account_group(models.Model):
+    account_id = models.CharField(max_length=80, unique=True)
+    usergroup_id = models.CharField(max_length=160, unique=True)
+
+    def __unicode__(self):
+        return self.id
 
 class User(models.Model):
     USER_ROLE_CHOICES = (

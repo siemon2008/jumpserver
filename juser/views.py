@@ -113,14 +113,34 @@ def gen_ssh_key(username, password=None, length=2048):
     bash('chown %s:%s %s' % (username, username, public_key_file))
 
 
+def account_ssh_key(account,length=2048):
+    private_key_dir = os.path.join(BASE_DIR, 'keys/account/'+account)
+    private_key_file = os.path.join(private_key_dir, account+".pem")
+    #public_key_dir = 'keys/account/%s/' % account
+    public_key_dir = os.path.join(BASE_DIR, 'keys/account/'+account)
+    public_key_file = os.path.join(public_key_dir, account+".pub")
+    is_dir_account(private_key_dir)
+    is_dir_account(public_key_dir)
+    key = RSA.generate(length)
+    with open(private_key_file, 'w') as pri_f:
+        pri_f.write(key.exportKey('PEM'))
+    os.chmod(private_key_file, 0644)
+
+    pub_key = key.publickey()
+    with open(public_key_file, 'w') as pub_f:
+        pub_f.write(pub_key.exportKey('OpenSSH'))
+    os.chmod(public_key_file, 0600)
+
 def server_add_user(username, password, ssh_key_pwd):
     bash("useradd '%s'; echo '%s' | passwd --stdin '%s'" % (username, password, username))
     gen_ssh_key(username, ssh_key_pwd)
 
-
 def server_del_user(username):
     bash('userdel -r %s' % username)
 
+def server_del_account(account):
+    account_key_dir = os.path.join(BASE_DIR, 'keys/account/'+account)
+    bash('rm -rf %s' % account_key_dir)
 
 def ldap_add_user(username, ldap_pwd):
     if LDAP_ENABLE:
@@ -1021,8 +1041,71 @@ def chg_info(request):
     return render_to_response('juser/chg_info.html', locals(), context_instance=RequestContext(request))
 
 
+@require_super_user
+def account_add(request):
+    header_title, path1, path2 = '添加系统帐号', '用户管理', '添加系统帐号'
+    if request.method == 'POST':
+        account = request.POST.get('account', '')
+        comment = request.POST.get('comment', '')
+
+        try:
+            if not account:
+                raise AddError('系统帐号不能为空')
+            if Account.objects.filter(account=account):
+                raise AddError(u'系统帐号 %s 已存在' % account)
+        except AddError, e:
+            error = e
+        else:
+            Account(account=account, comment=comment).save()
+            account_ssh_key(account)
+            msg = u'添加系统帐号 %s 成功' % account
+
+    return render_to_response('juser/account_add.html', locals(), context_instance=RequestContext(request))
+	
+@require_super_user
+def account_list(request):
+    header_title, path1, path2 = '查看系统帐号', '用户管理', '查看系统帐号'
+    keyword = request.GET.get('search')
+    gid = request.GET.get('gid', '')
+    contact_list = Account.objects.all().order_by('id')
+
+    if gid:
+        user_group = UserGroup.objects.filter(id=gid)
+        if user_group:
+            group = user_group[0]
+            contact_list = group.account_set.all()
+
+    if keyword:
+        contact_list = Account.objects.filter(Q(account__icontains=keyword) | Q(comment__icontains=keyword)).order_by('account')
+
+    contact_list, p, contacts, page_range, current_page, show_first, show_end = pages(contact_list, request)
+
+    return render_to_response('juser/account_list.html', locals(), context_instance=RequestContext(request))
+
+	
+@require_super_user
+def account_del(request):
+    account_id = request.GET.get('id', None)
+    if not account_id:
+        return HttpResponseRedirect('/juser/account_list/')
+    account = Account.objects.filter(id=account_id)
+    if account:
+        account = account[0]
+        account.delete()
+        server_del_account(account.account)
+    return HttpResponseRedirect('/juser/account_list/')
 
 
+@require_super_user
+def account_del_ajax(request):
+    account_ids = request.POST.get('account_ids')
+    for account_id in account_ids.split(','):
+        if int(account_id):
+            account = Account.objects.filter(id=account_id)
+            account = account[0]
+            account.delete()
+            server_del_account(account.account)
+    return HttpResponse("删除成功")
 
 @require_login
 def down_key(request):
@@ -1054,3 +1137,37 @@ def down_key(request):
                 return response
 
     return HttpResponse('No Key File. Contact Admin.')
+
+
+
+@require_login
+def account_down_key(request):
+    accoount_id = ''
+    if is_super_user(request):
+        account_id = request.GET.get('id')
+
+    if is_group_admin(request):
+        account_id = request.GET.get('id')
+        if not validate(request, account=[account_id]):
+            account_id = request.session.get('accound_id')
+
+    if is_common_user(request):
+        account_id = request.session.get('account_id')
+
+    if account_id:
+        account = Account.objects.filter(id=account_id)
+        if account:
+            account = account[0]
+            account = account.account
+            private_key_dir = os.path.join(BASE_DIR, 'keys/account/'+account)
+            private_key_file = os.path.join(private_key_dir, account+".pub")
+            if os.path.isfile(private_key_file):
+                f = open(private_key_file)
+                data = f.read()
+                f.close()
+                response = HttpResponse(data, content_type='application/octet-stream')
+                response['Content-Disposition'] = 'attachment; filename=%s' % os.path.basename(private_key_file)
+                return response
+
+    return HttpResponse('No Key File. Contact Admin.')
+

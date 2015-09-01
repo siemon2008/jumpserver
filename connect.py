@@ -24,7 +24,7 @@ from multiprocessing import Pool
 os.environ['DJANGO_SETTINGS_MODULE'] = 'jumpserver.settings'
 from juser.models import User
 from jlog.models import Log
-from jumpserver.api import CONF, BASE_DIR, ServerError, user_perm_group_api, user_perm_group_hosts_api, get_user_host
+from jumpserver.api import CONF, BASE_DIR, ServerError, user_perm_group_api, user_perm_group_hosts_api, get_user_host, account_perm_group_api, user_perm_usergroup_api, user_perm_usergroup_hosts_api
 from jumpserver.api import AssetAlias, get_connect_item
 
 
@@ -90,8 +90,8 @@ def log_record(username, host):
     log_file_path = os.path.join(today_connect_log_dir, log_filename)
     dept_name = User.objects.get(username=username).dept.name
     pid = os.getpid()
-    pts = os.popen("ps axu | awk '$2==%s{ print $7 }'" % pid).read().strip()
-    ip_list = os.popen("who | awk '$2==%s{ print $5 }'" % pts).read().strip('()\n')
+    pts = os.popen("ps axu | grep %s | grep -v grep | awk '{ print $7 }'" % pid).read().strip()
+    ip_list = os.popen("who | grep %s | awk '{ print $5 }'" % pts).read().strip('()\n')
 
     if not os.path.isdir(today_connect_log_dir):
         try:
@@ -131,7 +131,7 @@ def posix_shell(chan, username, host):
 
             if chan in r:
                 try:
-                    x = chan.recv(10240)
+                    x = chan.recv(1024)
                     if len(x) == 0:
                         break
                     sys.stdout.write(x)
@@ -158,12 +158,12 @@ def posix_shell(chan, username, host):
         print_prompt()
 
 
-def get_user_hostgroup(username):
+def get_user_usergroup(username):
     """Get the hostgroups of under the user control."""
     groups_attr = {}
-    group_all = user_perm_group_api(username)
-    for group in group_all:
-        groups_attr[group.name] = [group.id, group.comment]
+    user_group_all = user_perm_usergroup_api(username)
+    for user_group in user_group_all:
+        groups_attr[user_group.name] = [user_group.id]
     return groups_attr
 
 
@@ -171,21 +171,23 @@ def get_user_hostgroup_host(username, gid):
     """Get the hostgroup hosts of under the user control."""
     hosts_attr = {}
     user = User.objects.get(username=username)
-    hosts = user_perm_group_hosts_api(gid)
+    hosts = user_perm_usergroup_hosts_api(gid)
+    assets = get_user_host(username)
     for host in hosts:
         alias = AssetAlias.objects.filter(user=user, host=host)
         if alias and alias[0].alias != '':
             hosts_attr[host.ip] = [host.id, host.ip, alias[0].alias]
         else:
-            hosts_attr[host.ip] = [host.id, host.ip, host.comment]
+            hosts_attr[host.ip] = [host.id, host.ip, host.comment, assets[host.ip][3]]
     return hosts_attr
 
 
-def verify_connect(username, part_ip):
-    ip_matched = []
+def verify_connect(username, part_ip, gid):
     try:
         hosts_attr = get_user_host(username)
         hosts = hosts_attr.values()
+        account_group_list = account_perm_group_api(gid)
+        account = account_group_list[0].account
     except ServerError, e:
         color_print(e, 'red')
         return False
@@ -201,23 +203,16 @@ def verify_connect(username, part_ip):
     ip_matched = list(set(ip_matched))
     if len(ip_matched) > 1:
         for ip in ip_matched:
-            print '%-15s -- %s' % (ip, hosts_attr[ip][2])
+            print '%-15s  %s -- %s' % (ip, hosts_attr[ip][3] ,hosts_attr[ip][2])
     elif len(ip_matched) < 1:
         color_print('No Permission or No host.', 'red')
     else:
-        username, password, host, port = get_connect_item(username, ip_matched[0])
-        connect(username, password, host, port, LOGIN_NAME)
+        username, password, host, port, login_type = get_connect_item(username, ip_matched[0])
+        connect(username, password, host, port, LOGIN_NAME, account, login_type)
 
 
 def print_prompt():
-    msg = """\033[1;32m###  Welcome Use JumpServer To Login. ### \033[0m
-    1) Type \033[32mIP or Part IP, Host Alias or Comments \033[0m To Login.
-    2) Type \033[32mP/p\033[0m To Print The Servers You Available.
-    3) Type \033[32mG/g\033[0m To Print The Server Groups You Available.
-    4) Type \033[32mG/g(1-N)\033[0m To Print The Server Group Hosts You Available.
-    5) Type \033[32mE/e\033[0m To Execute Command On Several Servers.
-    6) Type \033[32mQ/q\033[0m To Quit.
-    """
+    msg = """\033[1;32m### 欢迎使用堡垒机. ### \033[0m"""
     print textwrap.dedent(msg)
 
 
@@ -230,18 +225,23 @@ def print_user_host(username):
     hosts = hosts_attr.keys()
     hosts.sort()
     for ip in hosts:
-        print '%-15s -- %s' % (ip, hosts_attr[ip][2])
+        print '%-15s  %s -- %s' % (ip, hosts_attr[ip][3] ,hosts_attr[ip][2])
     print ''
 
 
 def print_user_hostgroup(username):
-    group_attr = get_user_hostgroup(username)
+    print '' 
+    group_attr = get_user_usergroup(username)
     groups = group_attr.keys()
+    group_dict = {}
     for g in groups:
-        print "[%3s] %s -- %s" % (group_attr[g][0], g, group_attr[g][1])
+        group_dict[group_attr[g][0]] = g
+    for gid, info in group_dict.items():
+        print "[%s] %s" % (gid, info)
 
 
 def print_user_hostgroup_host(username, gid):
+    print '' 
     pattern = re.compile(r'\d+')
     match = pattern.match(gid)
     if match:
@@ -249,28 +249,43 @@ def print_user_hostgroup_host(username, gid):
         hosts = hosts_attr.keys()
         hosts.sort()
         for ip in hosts:
-            print '%-15s -- %s' % (ip, hosts_attr[ip][2])
+            print '%-15s  %s -- %s' % (ip, hosts_attr[ip][3] ,hosts_attr[ip][2])
     else:
         color_print('No such group id, Please check it.', 'red')
 
 
-def connect(username, password, host, port, login_name):
+def connect(username, password, host, port, login_name, account, login_type):
     """
     Connect server.
     """
-    ps1 = "PS1='[\u@%s \W]\$ '\n" % host
+    #ps1 = "PS1='[\u@%s \W]\$ '\n" % host
     login_msg = "clear;echo -e '\\033[32mLogin %s done. Enjoy it.\\033[0m'\n" % host
 
     # Make a ssh connection
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh.connect(host, port=port, username=username, password=password, compress=True)
-    except paramiko.ssh_exception.AuthenticationException, paramiko.ssh_exception.SSHException:
-        raise ServerError('Authentication Error.')
-    except socket.error:
-        raise ServerError('Connect SSH Socket Port Error, Please Correct it.')
+    if login_type == "L":
+         try:
+              pk_path = '%s/account/%s/%s.pem'%(SSH_KEY_DIR, account, account)
+              key = paramiko.RSAKey.from_private_key_file(pk_path)
+         except IOError:
+              raise ServerError("SSH Key File Authentication Error.")
+
+         try:
+              ssh.connect(host, port=port, username=account, pkey=key, compress=True, timeout=15)
+         except paramiko.ssh_exception.AuthenticationException, paramiko.ssh_exception.SSHException:
+              raise ServerError('Authentication Error.')
+         except socket.error:
+              raise ServerError('Connect SSH Socket Port Error, Please Correct it.')
+
+    if login_type == "M":
+        try:
+              ssh.connect(host, port=port, username=username, password=password, compress=True, timeout=15)
+        except paramiko.ssh_exception.AuthenticationException, paramiko.ssh_exception.SSHException:
+              raise ServerError('Authentication Error.')
+        except socket.error:
+              raise ServerError('Connect SSH Socket Port Error, Please Correct it.')
 
     # Make a channel and set windows size
     global channel
@@ -282,7 +297,7 @@ def connect(username, password, host, port, login_name):
         pass
 
     # Set PS1 and msg it
-    channel.send(ps1)
+    #channel.send(ps1)
     channel.send(login_msg)
 
     # Make ssh interactive tunnel
@@ -293,106 +308,37 @@ def connect(username, password, host, port, login_name):
     ssh.close()
 
 
-def remote_exec_cmd(ip, port, username, password, cmd):
-    try:
-        time.sleep(5)
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(ip, port, username, password, timeout=5)
-        stdin, stdout, stderr = ssh.exec_command("bash -l -c '%s'" % cmd)
-        out = stdout.readlines()
-        err = stderr.readlines()
-        color_print('%s:' % ip, 'blue')
-        for i in out:
-            color_print(" " * 4 + i.strip(), 'green')
-        for j in err:
-            color_print(" " * 4 + j.strip(), 'red')
-        ssh.close()
-    except Exception as e:
-        color_print(ip + ':', 'blue')
-        color_print(str(e), 'red')
-
-
-def multi_remote_exec_cmd(hosts, username, cmd):
-    pool = Pool(processes=5)
-    for host in hosts:
-        username, password, ip, port = get_connect_item(username, host)
-        pool.apply_async(remote_exec_cmd, (ip, port, username, password, cmd))
-    pool.close()
-    pool.join()
-
-
-def exec_cmd_servers(username):
-    color_print("You can choose in the following IP(s), Use glob or ips split by comma. q/Q to PreLayer.", 'green')
-    print_user_host(LOGIN_NAME)
-    while True:
-        hosts = []
-        inputs = raw_input('\033[1;32mip(s)>: \033[0m')
-        if inputs in ['q', 'Q']:
-            break
-        get_hosts = get_user_host(username).keys()
-
-        if ',' in inputs:
-            ips_input = inputs.split(',')
-            for host in ips_input:
-                if host in get_hosts:
-                    hosts.append(host)
-        else:
-            for host in get_hosts:
-                if fnmatch.fnmatch(host, inputs):
-                    hosts.append(host.strip())
-
-        if len(hosts) == 0:
-            color_print("Check again, Not matched any ip!", 'red')
-            continue
-        else:
-            print "You matched ip: %s" % hosts
-        color_print("Input the Command , The command will be Execute on servers, q/Q to quit.", 'green')
-        while True:
-            cmd = raw_input('\033[1;32mCmd(s): \033[0m')
-            if cmd in ['q', 'Q']:
-                break
-            exec_log_dir = os.path.join(LOG_DIR, 'exec_cmds')
-            if not os.path.isdir(exec_log_dir):
-                os.mkdir(exec_log_dir)
-                os.chmod(exec_log_dir, 0777)
-            filename = "%s/%s.log" % (exec_log_dir, time.strftime('%Y%m%d'))
-            f = open(filename, 'a')
-            f.write("DateTime: %s User: %s Host: %s Cmds: %s\n" %
-                    (time.strftime('%Y/%m/%d %H:%M:%S'), username, hosts, cmd))
-            multi_remote_exec_cmd(hosts, username, cmd)
-
-
 if __name__ == '__main__':
     print_prompt()
+    print_user_hostgroup(LOGIN_NAME)
     gid_pattern = re.compile(r'^g\d+$')
+    ip_pattern = re.compile(r'\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}')
     try:
         while True:
             try:
-                option = raw_input("\033[1;32mOpt or IP>:\033[0m ")
-            except EOFError:
-                print
-                continue
-            except KeyboardInterrupt:
-                sys.exit(0)
-            if option in ['P', 'p']:
-                print_user_host(LOGIN_NAME)
-                continue
-            elif option in ['G', 'g']:
-                print_user_hostgroup(LOGIN_NAME)
-                continue
-            elif gid_pattern.match(option):
-                gid = option[1:].strip()
-                print_user_hostgroup_host(LOGIN_NAME, gid)
-                continue
-            elif option in ['E', 'e']:
-                exec_cmd_servers(LOGIN_NAME)
-            elif option in ['Q', 'q', 'exit']:
-                sys.exit()
-            else:
-                try:
-                    verify_connect(LOGIN_NAME, option)
-                except ServerError, e:
-                    color_print(e, 'red')
-    except IndexError:
-        pass
+                    try:
+                        option = raw_input("\n\033[1;32mSelect group>:\033[0m ")
+                    except EOFError:
+                        print
+                        continue
+                    except KeyboardInterrupt,e:
+                        sys.stdout.write(str(e) + '\n')
+                    if gid_pattern.match(option):
+                        gid = option[1:].strip()
+                        print_user_hostgroup_host(LOGIN_NAME, gid)
+                        option = raw_input("\n\033[1;32mSelect server>:\033[0m ")
+                        if ip_pattern.match(option):
+                            verify_connect(LOGIN_NAME, option, gid)
+                        else:
+                            print_user_hostgroup(LOGIN_NAME)
+                        continue
+                    else:
+                        try:
+                            print_user_hostgroup(LOGIN_NAME)
+                        except ServerError, e:
+                            color_print(e, 'red')
+            except (IndexError, Exception, KeyboardInterrupt), e:
+                   sys.stdout.write(str(e) + '\n')
+    except (IndexError, Exception, KeyboardInterrupt), e:
+        sys.stdout.write(str(e) + '\n')
+

@@ -118,6 +118,7 @@ function search_ip(text, noselect, total){
                             </div>
                         </div>
 
+
                         <div class="row">
                             <div class="form-group">
                                 <div class="col-sm-4 col-sm-offset-2">
@@ -157,6 +158,12 @@ $('#sudoPerm').validator({
             tip: "选择主机组",
             ok: "",
             msg: {checked: "至少选择一个主机组"}
+        }
+        "account_groups_select": {
+            rule: "required",
+            tip: "选择主机组",
+            ok: "",
+            msg: {checked: "至少选择一个系统帐号"}
         }
 
     },

@@ -25,7 +25,7 @@ io.on('connection', function(socket){
     //监听新用户加入
     socket.on('login', function(obj){
         request({
-            uri:"http://127.0.0.1/node_auth/",
+            uri:"http://127.0.0.1:8011/node_auth/",
             method:"POST",
             form:{
                 username:obj.username,

@@ -16,7 +16,8 @@ import subprocess
 from django.core.paginator import Paginator, EmptyPage, InvalidPage
 from django.http import HttpResponse, Http404
 from django.shortcuts import render_to_response
-from juser.models import User, UserGroup, DEPT
+from juser.models import User, UserGroup, DEPT, Account
+from jperm.models import Perm
 from jasset.models import Asset, BisGroup, IDC
 from jlog.models import Log
 from jasset.models import AssetAlias
@@ -280,6 +281,18 @@ def view_splitter(request, su=None, adm=None):
     else:
         return HttpResponseRedirect('/login/')
 
+def account_perm_group_api(username, gid):
+    if username and gid:
+        user = User.objects.get(username=username)
+        account_group_list = []
+        perm_list = [] 
+        user_group_all = user.group.all()
+        for user_group in user_group_all:
+            perm_list = Perm.objects.filter(user_group_id=user_group.id)
+            for perm in perm_list:
+                if int(perm.asset_group_id) == int(gid):
+                   account_group_list.extend(user_group.account_set.all())
+        return account_group_list
 
 def user_group_perm_asset_group_api(user_group):
     asset_group_list = []
@@ -289,9 +302,40 @@ def user_group_perm_asset_group_api(user_group):
     return asset_group_list
 
 
-def user_perm_group_api(username):
+def account_perm_group_api(gid):
+    if gid:
+       account_group_list = []
+       user_group = UserGroup.objects.filter(id=gid)
+       if user_group:
+           group = user_group[0]
+           account_group_list = group.account_set.all()
+       return account_group_list
+
+def user_perm_usergroup_api(username):
     if username:
         user = User.objects.get(username=username)
+        user_group_all = user.group.all()
+        return user_group_all
+
+
+def user_perm_usergroup_hosts_api(gid):
+    posts = []
+    user_group = UserGroup.objects.filter(id=gid)
+    if user_group:
+        perms = Perm.objects.filter(user_group=user_group)
+        for perm in perms:
+            for post in perm.asset_group.asset_set.all():
+                    posts.append(post)
+        posts = list(set(posts))
+        return posts
+    else:
+        return []
+
+
+
+def user_perm_group_api(username):
+    user = User.objects.get(username=username)
+    if username:
         perm_list = []
         user_group_all = user.group.all()
         for user_group in user_group_all:
@@ -355,7 +399,7 @@ def get_user_host(username):
             if alias and alias[0].alias != '':
                 hosts_attr[asset.ip] = [asset.id, asset.ip, alias[0].alias]
             else:
-                hosts_attr[asset.ip] = [asset.id, asset.ip, asset.comment]
+                hosts_attr[asset.ip] = [asset.id, asset.ip, asset.comment, asset.idc.name]
         return hosts_attr
     else:
         raise ServerError('User %s does not exit!' % username)
@@ -379,12 +423,12 @@ def get_connect_item(username, ip):
 
     if asset.login_type in login_type_dict:
         password = CRYPTOR.decrypt(login_type_dict[asset.login_type])
-        return username, password, ip, port
+        return username, password, ip, port, asset.login_type
 
     elif asset.login_type == 'M':
         username = asset.username
         password = CRYPTOR.decrypt(asset.password)
-        return username, password, ip, port
+        return username, password, ip, port, asset.login_type
 
     else:
         raise ServerError('Login type is not in ["L", "M"]')
@@ -472,7 +516,6 @@ def verify(request, user_group=None, user=None, asset_group=None, asset=None, ed
         asset_ids = []
         for a in dept_assets:
             asset_ids.append(str(a.id))
-        print asset, asset_ids
         if not set(asset).issubset(set(asset_ids)):
             return False
 
@@ -488,6 +531,11 @@ def is_dir(dir_name, username='root', mode=0755):
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
         bash("chown %s:%s '%s'" % (username, username, dir_name))
+    os.chmod(dir_name, mode)
+
+def is_dir_account(dir_name, username='root', mode=0755):
+    if not os.path.isdir(dir_name):
+        os.makedirs(dir_name)
     os.chmod(dir_name, mode)
 
 

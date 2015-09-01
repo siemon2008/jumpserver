@@ -122,6 +122,12 @@ def member_count(group_id):
     return group.user_set.count()
 
 
+@register.filter(name='account_perm_count')
+def account_perm_count(group_id):
+    group = UserGroup.objects.get(id=group_id)
+    return group.account_set.count()
+
+
 @register.filter(name='group_user_count')
 def group_user_count(group_id):
     group = UserGroup.objects.get(id=group_id)
