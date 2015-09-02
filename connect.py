@@ -182,12 +182,10 @@ def get_user_hostgroup_host(username, gid):
     return hosts_attr
 
 
-def verify_connect(username, part_ip, gid):
+def verify_connect(username, part_ip, account):
     try:
         hosts_attr = get_user_host(username)
         hosts = hosts_attr.values()
-        account_group_list = account_perm_group_api(gid)
-        account = account_group_list[0].account
     except ServerError, e:
         color_print(e, 'red')
         return False
@@ -250,6 +248,16 @@ def get_user_hostgroup(username):
         num += 1
         group_dict[num] = [group_attr[g][0],g]
     return group_dict
+
+def get_account_perm_group(gid):
+    print ''
+    account_dict = account_perm_group_api(gid)
+    if len(account_dict) == 1:
+        return account_dict
+    else:
+        for id,account in account_dict.items():
+            print '%s: %-5s' % (id,account)
+        return account_dict
 
 
 def print_user_hostgroup_host(username, gid):
@@ -359,8 +367,31 @@ if __name__ == '__main__':
                                     print_user_hostgroup_host(LOGIN_NAME, gid)
                                     continue
                                 if ip_pattern.match(option):
-                                    verify_connect(LOGIN_NAME, option, gid)
-                                    break
+                                    account_dict = get_account_perm_group(gid)
+                                    if len(account_dict) == 1:
+                                        account = account_dict[1]
+                                        verify_connect(LOGIN_NAME, option, account)
+                                        break
+                                    else:
+                                        while True:
+                                            try:
+                                                uid = raw_input("\n\033[1;32mSelect account>:\033[0m ")
+                                            except EOFError:
+                                                continue
+                                            except KeyboardInterrupt,e:
+                                                sys.stdout.write(str(e) + '\n')
+                                            if id_pattern.match(uid):
+                                                if account_dict.has_key(int(uid)):
+                                                    account = account_dict[int(uid)]
+                                                    verify_connect(LOGIN_NAME, option, account)    
+                                                    break
+                                                else:
+                                                    get_account_perm_group(gid)
+                                                    continue
+                                            else:
+                                                print_user_hostgroup_host(LOGIN_NAME, gid)
+                                                break
+                                         
                                 else:
                                     print_user_hostgroup_host(LOGIN_NAME, gid)
                                     continue
