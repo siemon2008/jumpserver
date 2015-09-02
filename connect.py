@@ -234,10 +234,22 @@ def print_user_hostgroup(username):
     group_attr = get_user_usergroup(username)
     groups = group_attr.keys()
     group_dict = {}
+    num = 0
     for g in groups:
-        group_dict[group_attr[g][0]] = g
+        num += 1
+        group_dict[num] = [group_attr[g][0],g]
     for gid, info in group_dict.items():
-        print "[%s] %s" % (gid, info)
+        print "[%s] %s" % (gid, info[1])
+
+def get_user_hostgroup(username):
+    group_attr = get_user_usergroup(username)
+    groups = group_attr.keys()
+    group_dict = {}
+    num = 0
+    for g in groups:
+        num += 1
+        group_dict[num] = [group_attr[g][0],g]
+    return group_dict
 
 
 def print_user_hostgroup_host(username, gid):
@@ -309,22 +321,27 @@ def connect(username, password, host, port, login_name, account, login_type):
 
 
 if __name__ == '__main__':
-    print_prompt()
-    print_user_hostgroup(LOGIN_NAME)
-    gid_pattern = re.compile(r'^g\d+$')
-    ip_pattern = re.compile(r'\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}')
     try:
+        gid_pattern = re.compile(r'^\d+$')
+        ip_pattern = re.compile(r'\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}')
+        print_prompt()
+        print_user_hostgroup(LOGIN_NAME)
         while True:
             try:
                     try:
-                        option = raw_input("\n\033[1;32mSelect group>:\033[0m ")
+                        gid = raw_input("\n\033[1;32mSelect group>:\033[0m ")
                     except EOFError:
                         print
                         continue
                     except KeyboardInterrupt,e:
                         sys.stdout.write(str(e) + '\n')
-                    if gid_pattern.match(option):
-                        gid = option[1:].strip()
+                    if gid_pattern.match(gid):
+                        group_dict = get_user_hostgroup(LOGIN_NAME)
+                        if group_dict.has_key(int(gid)):
+                            gid = str(group_dict[int(gid)][0])
+                        else:
+                            print_user_hostgroup(LOGIN_NAME)
+                            continue
                         print_user_hostgroup_host(LOGIN_NAME, gid)
                         option = raw_input("\n\033[1;32mSelect server>:\033[0m ")
                         if ip_pattern.match(option):
