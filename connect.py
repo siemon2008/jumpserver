@@ -368,7 +368,10 @@ if __name__ == '__main__':
                                     continue
                                 if ip_pattern.match(option):
                                     account_dict = get_account_perm_group(gid)
-                                    if len(account_dict) == 1:
+                                    if len(account_dict) == 0:
+                                        color_print('The group did not authorize the system to account, Please check it.', 'red')
+                                        continue 
+                                    elif len(account_dict) == 1:
                                         account = account_dict[1]
                                         verify_connect(LOGIN_NAME, option, account)
                                         break
