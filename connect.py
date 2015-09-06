@@ -189,7 +189,6 @@ def verify_connect(username, part_ip, account):
     except ServerError, e:
         color_print(e, 'red')
         return False
-
     for ip_info in hosts:
         if part_ip in ip_info[1:] and part_ip:
             ip_matched = [ip_info[1]]
@@ -197,8 +196,11 @@ def verify_connect(username, part_ip, account):
         for info in ip_info[1:]:
             if part_ip in info:
                 ip_matched.append(ip_info[1])
-
-    ip_matched = list(set(ip_matched))
+    try:
+        ip_matched = list(set(ip_matched))
+    except:
+        ip_matched = []
+        
     if len(ip_matched) > 1:
         for ip in ip_matched:
             print '%-15s  %s -- %s' % (ip, hosts_attr[ip][3] ,hosts_attr[ip][2])
@@ -398,6 +400,34 @@ if __name__ == '__main__':
                                 else:
                                     print_user_hostgroup_host(LOGIN_NAME, gid)
                                     continue
+                            elif ip_pattern.match(option):
+                                 account_dict = get_account_perm_group(gid)
+                                 if len(account_dict) == 0:
+                                     color_print('The group did not authorize the system to account, Please check it.', 'red')
+                                     continue
+                                 elif len(account_dict) == 1:
+                                     account = account_dict[1]
+                                     verify_connect(LOGIN_NAME, option, account)
+                                     break
+                                 else:
+                                     while True:
+                                         try:
+                                             uid = raw_input("\n\033[1;32mSelect account>:\033[0m ")
+                                         except EOFError:
+                                             continue
+                                         except KeyboardInterrupt,e:
+                                             sys.stdout.write(str(e) + '\n')
+                                         if id_pattern.match(uid):
+                                             if account_dict.has_key(int(uid)):
+                                                 account = account_dict[int(uid)]
+                                                 verify_connect(LOGIN_NAME, option, account)
+                                                 break
+                                             else:
+                                                 get_account_perm_group
+                                                 continue
+                                         else:
+                                             print_user_hostgroup_host(LOGIN_NAME, gid)
+                                             break
                             else:
                                 try:
                                     print_user_hostgroup(LOGIN_NAME)
