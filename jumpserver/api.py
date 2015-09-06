@@ -281,18 +281,6 @@ def view_splitter(request, su=None, adm=None):
     else:
         return HttpResponseRedirect('/login/')
 
-def account_perm_group_api(username, gid):
-    if username and gid:
-        user = User.objects.get(username=username)
-        account_group_list = []
-        perm_list = [] 
-        user_group_all = user.group.all()
-        for user_group in user_group_all:
-            perm_list = Perm.objects.filter(user_group_id=user_group.id)
-            for perm in perm_list:
-                if int(perm.asset_group_id) == int(gid):
-                   account_group_list.extend(user_group.account_set.all())
-        return account_group_list
 
 def user_group_perm_asset_group_api(user_group):
     asset_group_list = []
@@ -301,15 +289,20 @@ def user_group_perm_asset_group_api(user_group):
         asset_group_list.append(perm.asset_group)
     return asset_group_list
 
-
 def account_perm_group_api(gid):
     if gid:
+       num = 0
        account_group_list = []
+       account_dict = {}
        user_group = UserGroup.objects.filter(id=gid)
        if user_group:
            group = user_group[0]
            account_group_list = group.account_set.all()
-       return account_group_list
+       for account in account_group_list:
+           num += 1
+           account_dict[num]= (account.account)
+       return account_dict
+
 
 def user_perm_usergroup_api(username):
     if username:
