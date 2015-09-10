@@ -23,6 +23,7 @@
 #### 上传下载 ####
 	负责用户文件上传下载
 #### Sshd配置 ####
+        rm /etc/profile.d/zzjumserver.sh
         vim /etc/ssh/sshd_config 
         Match User "!root,*"
           ForceCommand /usr/bin/python  /opt/jumpserver/connect.py
