@@ -23,6 +23,7 @@
 #### 上传下载 ####
 	负责用户文件上传下载
 #### Sshd配置 ####
+	通过/etc/ssh/sshd_config配置限制用户登录堡垒机服务器上,只允许用户执行connect.py脚本.	
         rm /etc/profile.d/zzjumserver.sh
         vim /etc/ssh/sshd_config 
         Match User "!root,*"
