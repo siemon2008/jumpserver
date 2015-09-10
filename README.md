@@ -22,6 +22,13 @@
 	负责用户操作的审计，监控用户操作，统计用户操作记录，中断用户操作
 #### 上传下载 ####
 	负责用户文件上传下载
+#### Sshd配置 ####
+        vim /etc/ssh/sshd_config 
+        Match User "!root,*"
+          ForceCommand /usr/bin/python  /opt/jumpserver/connect.py
+          AllowAgentForwarding yes
+          AllowTcpForwarding  yes
+          X11Forwarding yes
 
 [官网](http://www.jumpserver.org)
 
