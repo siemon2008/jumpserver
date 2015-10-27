@@ -31,9 +31,6 @@
           AllowAgentForwarding yes
           AllowTcpForwarding  yes
           X11Forwarding yes
-#### VIM高显配置 ####
-	vim /etc/profile
-	export TERM=xterm-color
 
 [官网](http://www.jumpserver.org)
 
