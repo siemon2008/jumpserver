@@ -284,7 +284,7 @@ def connect(username, password, host, port, login_name, account, login_type):
     Connect server.
     """
     #ps1 = "PS1='[\u@%s \W]\$ '\n" % host
-    login_msg = "clear;echo -e '\\033[32mLogin %s done. Enjoy it.\\033[0m'\n" % host
+    login_msg = "clear;TERM=xterm && export TERM;echo -e '\\033[32mLogin %s done. Enjoy it.\\033[0m'\n" % host
 
     # Make a ssh connection
     ssh = paramiko.SSHClient()
