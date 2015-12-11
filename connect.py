@@ -41,6 +41,7 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 SSH_KEY_DIR = os.path.join(BASE_DIR, 'keys')
 SERVER_KEY_DIR = os.path.join(SSH_KEY_DIR, 'server')
 LOGIN_NAME = getpass.getuser()
+SEND_IP = CONF.get('base', 'ip')
 
 
 def color_print(msg, color='blue'):
@@ -104,7 +105,9 @@ def log_record(username, host):
         log_file = open(log_file_path, 'a')
     except IOError:
         raise ServerError('Create logfile failed, Please modify %s permission.' % today_connect_log_dir)
-
+   
+    if Log.objects.filter(pid=pid,is_finished=0):
+       Log.objects.filter(pid=pid).update(is_finished=1, end_time=datetime.datetime.now())
     log = Log(user=username, host=host, remote_ip=ip_list, dept_name=dept_name,
               log_path=log_file_path, start_time=datetime.datetime.now(), pid=pid)
     log_file.write('Starttime is %s\n' % datetime.datetime.now())
@@ -311,7 +314,6 @@ def connect(username, password, host, port, login_name, account, login_type):
               raise ServerError('Authentication Error.')
         except socket.error:
               raise ServerError('Connect SSH Socket Port Error, Please Correct it.')
-
     # Make a channel and set windows size
     global channel
     win_size = get_win_size()
@@ -339,6 +341,7 @@ if __name__ == '__main__':
         ip_pattern = re.compile(r'\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}')
         print_prompt()
         print_user_hostgroup(LOGIN_NAME)
+        log_record(LOGIN_NAME, SEND_IP)
         while True:
             try:
                     try:

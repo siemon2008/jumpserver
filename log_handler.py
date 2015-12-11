@@ -74,6 +74,9 @@ def run():
                     kill_pid(pid)
                 set_finish(pid_id)
                 log_hanler(pid_id)
+            if not psutil.pid_exists(pid):
+                set_finish(pid_id)
+                log_hanler(pid_id)
         except OSError:
             pass
 
